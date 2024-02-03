@@ -1,80 +1,90 @@
-import { useState } from "react";
-import Header from "./components/Header";
-import List from "./components/List";
-import Stats from "./components/Stats";
-import AddForm from "./components/AddForm";
+// `https://api.frankfurter.app/latest?amount=100&from=EUR&to=USD`
+import { useState, useEffect } from "react";
 
-const initialTodosAll = [
-  { id: 1, text: "Learn React Basics", isCompleted: false },
-  { id: 2, text: "Build a Todo App", isCompleted: false },
-  { id: 3, text: "Explore React Hooks", isCompleted: false },
-  { id: 4, text: "Understand React State Management", isCompleted: false },
-  { id: 5, text: "Practice with React Router", isCompleted: false },
-];
+export default function App() {
+  const [amount, setAmount] = useState("1");
+  const [fromCurrency, setFromCurrency] = useState("USD");
+  const [toCurrency, setToCurrency] = useState("EUR");
+  const [convertedRate, setConvertedRate] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-function App() {
-  const [initialTodos, setInitialTodos] = useState(initialTodosAll);
-  const [newTodo, setNewTodo] = useState("");
-  const [sortBy, setSortBy] = useState("input");
+  useEffect(
+    function () {
+      const controller = new AbortController();
+      async function convertCurrency() {
+        try {
+          setIsLoading(true);
+          setError("");
+          const res = await fetch(
+            `https://api.frankfurter.app/latest?amount=${amount}&from=${fromCurrency}&to=${toCurrency}`,
+            { signal: controller.signal }
+          );
+          if (!res.ok) throw new Error("Something Went wrong");
 
-  const allTodos = initialTodos.length;
-  const allCompletedTodos = initialTodos.filter(
-    (todo) => todo.isCompleted === true
-  ).length;
+          const data = await res.json();
+          setConvertedRate(data.rates[toCurrency]);
+          setError("");
+        } catch (error) {
+          setError(error.message);
+        } finally {
+          setIsLoading(false);
+        }
 
-  function handleAddTodo(e) {
-    e.preventDefault();
-    const newId = initialTodos.length + 1
-    const addNewTodo = {
-      id: newId,
-      text: newTodo,
-      isCompleted: false,
-    }
-    setInitialTodos([...initialTodos, addNewTodo])
-    setNewTodo('')
-  }
-
-  function handleCompleted(id) {
-    const newCompleted = initialTodos.map((todo) =>
-      todo.id === id ? { ...todo, isCompleted: !todo.isCompleted } : todo
-    );
-    setInitialTodos(() => newCompleted);
-  }
-
-  function handleDelete(id) {
-    const deleted = initialTodos.filter((todo) => id !== todo.id);
-    setInitialTodos(deleted);
-  }
-
-  let sortedTodos;
-  if (sortBy === "input") sortedTodos = initialTodos;
-  if (sortBy === "completed") {
-    sortedTodos = initialTodos
-      .slice()
-      .sort((a, b) => Number(a.isCompleted) - Number(b.isCompleted));
-  }
+        return function () {
+          controller.abort();
+        };
+      }
+      if (fromCurrency === toCurrency) {
+        return setConvertedRate(amount);
+      }
+      convertCurrency();
+    },
+    [amount, fromCurrency, toCurrency]
+  );
 
   return (
-    <div className="App">
-      <Header 
-        setSortBy={setSortBy} 
-        sortBy={sortBy} 
+    <div className="container">
+      <input
+        type="text"
+        value={amount}
+        onChange={(e) => setAmount(Number(e.target.value))}
+        disabled={isLoading}
       />
-      <List
-        initialTodos={sortedTodos}
-        onCompleted={handleCompleted}
-        onDelete={handleDelete}
-      />
-      <AddForm 
-        newTodo={newTodo} 
-        setNewTodo={setNewTodo}
-        onAddTodo ={handleAddTodo}
-      />
-      <Stats 
-        allCompletedTodos={allCompletedTodos} allTodos={allTodos} 
-      />
+      <select
+        value={fromCurrency}
+        onChange={(e) => setFromCurrency(e.target.value)}
+        disabled={isLoading}
+      >
+        <option value="USD">USD</option>
+        <option value="EUR">EUR</option>
+        <option value="CAD">CAD</option>
+        <option value="INR">INR</option>
+      </select>
+      <select
+        value={toCurrency}
+        onChange={(e) => setToCurrency(e.target.value)}
+        disabled={isLoading}
+      >
+        <option value="EUR">EUR</option>
+        <option value="USD">USD</option>
+        <option value="CAD">CAD</option>
+        <option value="INR">INR</option>
+      </select>
+      {isLoading && <Loader>Loading...</Loader>}
+      {!isLoading && !error && (
+        <p>
+          {amount} {fromCurrency} = {convertedRate} {toCurrency}
+        </p>
+      )}
+      {error && <ErrorMessage message={error} />}
     </div>
   );
 }
 
-export default App;
+function Loader({ children }) {
+  return <p>{children}</p>;
+}
+function ErrorMessage({ message }) {
+  return <p>Error: ⛔{message}</p>;
+}
